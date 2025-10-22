@@ -1,0 +1,19 @@
+# Ignore Secrets file
+sketch_esp8266/Secrets.h
+
+# Node-RED files
+node-red/*
+!node-red/flows.json
+!node-red/package.json
+!node-red/settings.js
+
+# Mosquitto data and log directories
+mosquitto/data/
+mosquitto/log/
+
+# InfluxDB data directory
+influxdb/
+
+# Environment variables file
+.env
+venv/

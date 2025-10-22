@@ -1,0 +1,71 @@
+services:
+  node-red:
+    image: nodered/node-red:4.0.9-22
+    container_name: nodered-sgh
+    # restart: unless-stopped
+    ports:
+      - "1880:1880"
+    volumes:
+      - ./node-red:/data
+    networks:
+      - node-red_network
+
+  # MQTT Broker
+  mqtt-broker:
+    image: eclipse-mosquitto:2.0.22
+    container_name: mqtt-broker-sgh
+    # restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    networks:
+      - node-red_network
+
+  time-series-db:
+    image: influxdb:2.7
+    container_name: influxdb-sgh
+    # restart: unless-stopped
+    ports:
+      - "8086:8086"
+    volumes:
+      - ./influxdb/data:/var/lib/influxdb2
+      - ./influxdb/config:/etc/influxdb2
+    networks:
+      - node-red_network
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=kohaku
+      - DOCKER_INFLUXDB_INIT_PASSWORD=kmanjing
+      - DOCKER_INFLUXDB_INIT_ORG=sgh
+      - DOCKER_INFLUXDB_INIT_BUCKET=aeroponics
+
+  flask-app:
+    build:
+      context: ./flask
+      dockerfile: Dockerfile
+    container_name: flask-sgh
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./flask:/app
+    environment:
+      - FLASK_ENV=development
+    depends_on:
+      - mqtt-broker
+      - time-series-db
+    networks:
+      - node-red_network
+    # restart: unless-stopped
+    develop:
+      watch:
+        - path: ./flask
+          target: /app
+          action: sync+restart
+        - path: ./flask/requirements.txt
+          action: rebuild
+networks:
+  node-red_network:
+    driver: bridge
