@@ -100,7 +100,7 @@ void loop() {
     // Publish data ke MQTT
     client.publish("AeroponicsSensor", String(dataSensor).c_str(), true);
   }
-  delay(500);
+  delay(2000);
 }
 
 float getWaterTemperature() {

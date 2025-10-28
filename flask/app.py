@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from datetime import datetime
 from pathlib import Path
-from utils import training, predict, FuzzyLogic
+from utils import training, predict, FuzzyLogic, verify_input
 
 # Load environment variables from .env file
 load_dotenv()
@@ -27,15 +27,25 @@ def home():
 def delay_spray_route():
     air_temperature = request.json.get("temperature")
     humidity = request.json.get("humidity")
-    if air_temperature is None or humidity is None:
+    water_temperature = request.json.get("waterTemperature")
+    if air_temperature is None or humidity is None or water_temperature is None:
         return (
             jsonify(
-                {"status": "error", "message": "Missing airTemperature or humidity"}
+                {
+                    "status": "error",
+                    "message": "Missing airTemperature or humidity or waterTemperature",
+                }
             ),
             400,
         )
 
-    delay = FuzzyLogic.CalculateSprayingDelay(air_temperature, humidity)
+    air_temperature, humidity, water_temperature = verify_input.verify_input(
+        air_temperature, humidity, water_temperature
+    )
+
+    delay = FuzzyLogic.CalculateSprayingDelay(
+        air_temperature, humidity, water_temperature
+    )
 
     if delay is None:
         return jsonify({"status": "error", "message": "Failed to calculate delay"}), 500

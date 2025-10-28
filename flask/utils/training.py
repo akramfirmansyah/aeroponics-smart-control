@@ -21,14 +21,20 @@ from constant.directory import logs_dir, model_dir
 from utils.create_features import create_features
 
 
-def get_data(measurement: str = "first", field: str = "airTemperature") -> pd.DataFrame:
+def get_data(
+    measurement: str = "first",
+    field: str = "airTemperature",
+    start_date: str | None = None,
+) -> pd.DataFrame:
     load_dotenv()
 
     token = os.getenv("INFLUX_TOKEN")
     url = os.getenv("DB_URL")
     org = os.getenv("DB_ORG")
     bucket = os.getenv("DB_BUCKET")
-    start_date = os.getenv("DATA_START_DATE")
+
+    if not start_date:
+        start_date = os.getenv("DATA_START_DATE")
 
     client = influxdb_client.InfluxDBClient(url=url, token=token, org=org)
 
@@ -104,20 +110,24 @@ def preprocessing() -> tuple:
     # Get data from InfluxDB
     df_airTemp = get_data(measurement="first", field="airTemperature")
     df_humidity = get_data(measurement="first", field="humidity")
+    df_waterTemp = get_data(measurement="first", field="waterTemperature")
 
     # Replace outlier with
     df_airTemp = replace_outlier(df_airTemp, "airTemperature")
     df_humidity = replace_outlier(df_humidity, "humidity")
+    df_waterTemp = replace_outlier(df_waterTemp, "waterTemperature")
 
     # Fill NaN with mean HH:MM
     df_airTemp = fill_na(df_airTemp, "airTemperature")
     df_humidity = fill_na(df_humidity, "humidity")
+    df_waterTemp = fill_na(df_waterTemp, "waterTemperature")
 
     # Create features
     df_airTemp = create_features(df_airTemp)
     df_humidity = create_features(df_humidity)
+    df_waterTemp = create_features(df_waterTemp)
 
-    return df_airTemp, df_humidity
+    return df_airTemp, df_humidity, df_waterTemp
 
 
 def create_model(X_train: pd.DataFrame, y_train: pd.DataFrame) -> xgb.XGBRegressor:
@@ -210,7 +220,7 @@ def save_matrix(
 
 
 def training_model(is_hyperparameter_tuning: bool = False) -> None:
-    df_temp, df_hum = preprocessing()
+    df_temp, df_hum, df_waterTemp = preprocessing()
 
     # Split data to X and y
     X_temp, y_temp = (
@@ -221,6 +231,10 @@ def training_model(is_hyperparameter_tuning: bool = False) -> None:
         df_hum.drop(columns=["humidity"]),
         df_hum[["humidity"]],
     )
+    X_water, y_water = (
+        df_waterTemp.drop(columns=["waterTemperature"]),
+        df_waterTemp[["waterTemperature"]],
+    )
 
     # Split data to train and test
     X_train_temp, X_test_temp, y_train_temp, y_test_temp = train_test_split(
@@ -229,16 +243,25 @@ def training_model(is_hyperparameter_tuning: bool = False) -> None:
     X_train_hum, X_test_hum, y_train_hum, y_test_hum = train_test_split(
         X_hum, y_hum, test_size=0.3, shuffle=False
     )
+    X_train_water, X_test_water, y_train_water, y_test_water = train_test_split(
+        X_water, y_water, test_size=0.3, shuffle=False
+    )
 
     if is_hyperparameter_tuning:
         model_temp = create_model_with_hyperparameter_tuning(X_train_temp, y_train_temp)
         model_hum = create_model_with_hyperparameter_tuning(X_train_hum, y_train_hum)
+        model_water = create_model_with_hyperparameter_tuning(
+            X_train_water, y_train_water
+        )
     else:
         model_temp = create_model(X_train_temp, y_train_temp)
         model_hum = create_model(X_train_hum, y_train_hum)
+        model_water = create_model(X_train_water, y_train_water)
 
     save_model(model_temp, "airTemperature")
     save_model(model_hum, "humidity")
+    save_model(model_water, "waterTemperature")
 
     save_matrix(model_temp, X_test_temp, y_test_temp, "airTemperature")
     save_matrix(model_hum, X_test_hum, y_test_hum, "humidity")
+    save_matrix(model_water, X_test_water, y_test_water, "waterTemperature")

@@ -17,3 +17,4 @@ influxdb/
 # Environment variables file
 .env
 venv/
+.github/
